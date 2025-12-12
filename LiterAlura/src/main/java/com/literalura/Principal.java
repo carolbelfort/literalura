@@ -183,29 +183,72 @@ public class Principal implements CommandLineRunner {
     }
 
     private void listarAutoresVivosEmAno() {
-        System.out.println("\n📅 Digite o ano para consultar autores vivos:");
+        System.out.println("\n📅 CONSULTAR AUTORES VIVOS EM DETERMINADO ANO");
+        System.out.println("═".repeat(60));
+        System.out.print("Digite o ano (exemplo: 1900): ");
 
         try {
-            var ano = leitura.nextInt();
-            leitura.nextLine();
+            String entrada = leitura.nextLine().trim();
 
-            List<Autor> autores = autorRepository.findAll();
-            List<Autor> autoresVivos = autores.stream()
-                    .filter(a -> a.getAnoNascimento() != null && a.getAnoNascimento() <= ano)
-                    .filter(a -> a.getAnoFalecimento() == null || a.getAnoFalecimento() >= ano)
-                    .toList();
+            // Validação: Verificar se é vazio
+            if (entrada.isEmpty()) {
+                System.out.println("❌ ERRO: O ano não pode estar vazio!");
+                return;
+            }
+
+            // Validação: Verificar se é número
+            Integer ano;
+            try {
+                ano = Integer.parseInt(entrada);
+            } catch (NumberFormatException e) {
+                System.out.println("❌ ERRO: '" + entrada + "' não é um ano válido!");
+                System.out.println("💡 Digite apenas números (exemplo: 1850, 1900, 2000)");
+                return;
+            }
+
+            // Validação: Verificar se o ano é razoável
+            if (ano < 1) {
+                System.out.println("❌ ERRO: O ano deve ser maior que 0!");
+                return;
+            }
+
+            if (ano > 2025) {
+                System.out.println("⚠️ AVISO: O ano " + ano + " está no futuro!");
+                System.out.print("Deseja continuar mesmo assim? (s/n): ");
+                String resposta = leitura.nextLine().toLowerCase().trim();
+                if (!resposta.equals("s") && !resposta.equals("sim")) {
+                    System.out.println("Operação cancelada.");
+                    return;
+                }
+            }
+
+            // Usar a Derived Query do repository
+            List<Autor> autoresVivos = autorRepository.findAutoresVivosEmAno(ano);
 
             if (autoresVivos.isEmpty()) {
-                System.out.println("❌ Nenhum autor vivo encontrado no ano " + ano);
+                System.out.println("\n❌ Nenhum autor vivo encontrado no ano " + ano);
+                System.out.println("💡 Use a opção 1 para buscar e registrar mais livros/autores.");
             } else {
                 System.out.println("\n✅ Autores vivos em " + ano + ":");
                 System.out.println("═".repeat(60));
+                System.out.println("📊 Total de autores encontrados: " + autoresVivos.size());
+                System.out.println("═".repeat(60));
+
                 autoresVivos.forEach(this::exibirDadosAutor);
+
+                // Estatística adicional
+                long autoresAindaVivos = autoresVivos.stream()
+                        .filter(a -> a.getAnoFalecimento() == null)
+                        .count();
+
+                if (autoresAindaVivos > 0) {
+                    System.out.println("ℹ️ Destes, " + autoresAindaVivos + " autor(es) ainda está(ão) vivo(s) atualmente.");
+                }
             }
 
         } catch (Exception e) {
-            System.out.println("❌ ERRO: Ano inválido!");
-            leitura.nextLine();
+            System.out.println("❌ ERRO inesperado: " + e.getMessage());
+            leitura.nextLine(); // Limpar buffer
         }
     }
 
@@ -236,7 +279,49 @@ public class Principal implements CommandLineRunner {
             System.out.println("❌ Nenhum livro encontrado no idioma: " + idioma);
             System.out.println("💡 Use a opção 1 para buscar e registrar livros.");
         } else {
-            System.out.println("\n✅ Livros encontrados no idioma '" + idioma + "':");
+            // ESTATÍSTICAS usando Streams
+            System.out.println("\n📊 ESTATÍSTICAS DE LIVROS NO IDIOMA '" + idioma.toUpperCase() + "'");
+            System.out.println("═".repeat(60));
+
+            // Total de livros
+            long totalLivros = livros.size();
+            System.out.println("📚 Total de livros: " + totalLivros);
+
+            // Total de downloads (usando Streams)
+            long totalDownloads = livros.stream()
+                    .filter(l -> l.getNumeroDownloads() != null)
+                    .mapToLong(Livro::getNumeroDownloads)
+                    .sum();
+            System.out.println("📥 Total de downloads: " + totalDownloads);
+
+            // Média de downloads
+            double mediaDownloads = livros.stream()
+                    .filter(l -> l.getNumeroDownloads() != null)
+                    .mapToInt(Livro::getNumeroDownloads)
+                    .average()
+                    .orElse(0.0);
+            System.out.println("📊 Média de downloads: " + String.format("%.2f", mediaDownloads));
+
+            // Livro mais baixado
+            livros.stream()
+                    .filter(l -> l.getNumeroDownloads() != null)
+                    .max((l1, l2) -> l1.getNumeroDownloads().compareTo(l2.getNumeroDownloads()))
+                    .ifPresent(l -> System.out.println("🏆 Livro mais baixado: " + l.getTitulo() +
+                            " (" + l.getNumeroDownloads() + " downloads)"));
+
+            // Número de autores únicos
+            long totalAutores = livros.stream()
+                    .map(Livro::getAutor)
+                    .filter(a -> a != null)
+                    .map(Autor::getNome)
+                    .distinct()
+                    .count();
+            System.out.println("👤 Total de autores: " + totalAutores);
+
+            System.out.println("═".repeat(60));
+
+            // Lista completa de livros
+            System.out.println("\n📚 LISTA COMPLETA:");
             System.out.println("═".repeat(60));
             livros.forEach(this::exibirDadosLivro);
         }
